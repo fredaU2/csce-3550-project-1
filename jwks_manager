@@ -1,0 +1,43 @@
+# jwks_manager.py
+import time
+import jwt
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
+
+class JWKSManager:
+    def __init__(self):
+        self.keys = {}
+
+    def generate_key(self, kid, expires_in):
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        public_key = private_key.public_key()
+
+        expiry = time.time() + expires_in
+        self.keys[kid] = {
+            'private_key': private_key,
+            'public_key': public_key,
+            'expiry': expiry
+        }
+
+    def get_jwks(self):
+        jwks = []
+        for kid, key_data in self.keys.items():
+            if time.time() < key_data['expiry']:  # Only return non-expired keys
+                public_numbers = key_data['public_key'].public_numbers()
+                jwks.append({
+                    "kty": "RSA",
+                    "kid": kid,
+                    "use": "sig",
+                    "n": public_numbers.n,
+                    "e": public_numbers.e
+                })
+        return jwks
+
+    def get_private_key(self, kid):
+        key_data = self.keys.get(kid)
+        if key_data and time.time() < key_data['expiry']:
+            return key_data['private_key']
+        return None
+
+    def get_expired_private_key(self, kid):
+        return self.keys.get(kid)['private_key'] if kid in self.keys else None
